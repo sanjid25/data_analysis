@@ -1,7 +1,19 @@
 This project contains and demonstrates my contribution
     to the San Fransisco Crime Classification problem of Kaggle.
     The task is carried out using R.
-    
+   
+	DATASET:
+        
+	For this report, only the training data, `train.csv` is used
+        for quick evaluation of the approaches.
+        Nonetheless, the models that are used can most certainly be tried
+        on the test.csv file of the San Fransisco Crime Classification.
+        The data can be retrieved from the link below:
+	https://www.kaggle.com/c/sf-crime/data
+	
+	NOTE: please keep `train.csv` in the working directory
+	while running the code(s) 
+  
     The packages used are: dplyr`, `lubridate`,
     `nnet`, `caret`, `doMC`, `data.table` and `phyclust`
     
@@ -13,13 +25,7 @@ This project contains and demonstrates my contribution
         Given all the packages are installed,
         knitting this file in R should generate the same pdf.
         The process takes less than 5 minutes in a Unix machine of RAM 4GB.
-    - train.csv:
-        For this report, only the training data is used
-        for quick evaluation of the approaches.
-        Nonetheless, the models that are used can most certainly be tried
-        on the test.csv file of the San Fransisco Crime Classification.
-        The link to the files is given in the report.pdf
-    - experiment.Rmd:
+  - experiment.Rmd:
         This file is the same as report.Rmd.
         Any changes made and executed to the code chunk of this file
         will generate another report `experiment.pdf`.
