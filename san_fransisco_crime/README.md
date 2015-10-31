@@ -16,19 +16,19 @@ https://www.kaggle.com/c/sf-crime/data
 NOTE: please keep `train.csv` in the working directory
 while running the code(s) 
   
-The packages used are: dplyr`, `lubridate`,
+The packages used are: `dplyr`, `lubridate`,
 `nnet`, `caret`, `doMC`, `data.table` and `phyclust`
     
 Brief descriptions of the files are given below:
-- report.pdf:
+- `report.pdf`:
 	Description of the approaches that are taken.
-- report.Rmd:
+- `report.Rmd`:
         This is the rmarkdown file that generated the pdf above.
         Given all the packages are installed,
         knitting this file in R should generate the same pdf.
         The process takes less than 5 minutes in a Unix machine of RAM 4GB.
-- experiment.Rmd:
-This file is the same as report.Rmd.
+- `experiment.Rmd`:
+This file is the same as `report.Rmd`.
 Any changes made and executed to the code chunk of this file
 will generate another report `experiment.pdf`.
     
