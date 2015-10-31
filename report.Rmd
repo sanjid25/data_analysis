@@ -1,0 +1,312 @@
+---
+title: "San Fransisco Crime"
+output: pdf_document
+---
+
+# Introduction
+
+**Task**
+
+The data used in this project is a repository of incidents of crimes that occurred in San Fransisco between January 2003 and May 2015. It is taken from data analysis competition website, Kaggle. It originally has a test set and training set but for prompt testing and validation, I have used the training set, `train.csv` for my work. With 878,049 observations, the datasets provide more than 12 years of crime reports. Broadly speaking, a useful classification task is to be able to predict the `Category` (the class variable) of the crime given time and location. The source of the data is in the link below.
+
+https://www.kaggle.com/c/sf-crime/data 
+
+
+**Running the .Rmd file**
+
+Keeping the `train.csv` file in the directory of the .Rmd file should run the code given. Due to use of `doMC` library of the `caret` package, the .Rmd file needs to be run in a UNIX machine if not the lab VMs. Just so this code can be easily run, I have set a variable `m` in the first code block which assigns a value of the size of subset to be used. Given this condition, the file takes less than 5 minutes to produce this report. For what it's worth, a bigger value of `m` would make a better report. The following packages were used for this report: `dplyr`, `lubridate`, `nnet`, `caret`, `doMC`, `data.table` and `phyclust` and need to be installed in R.
+
+```{r, echo = FALSE, message = FALSE}
+# Loading the data in R
+library(dplyr)
+data <- tbl_df(read.csv("train.csv", header=TRUE))
+m = 2000
+```
+
+
+**Explanatory variables**
+
+In the original data, time is given as timestamp in the `Dates` variable and as day of the week in `DayOfWeek` variable. Geographical location is given as logitude and latitude in the `X` and `Y` variables respectively. Location in terms of Police Department District is given as `PdDistrict`.
+
+
+**Variables discarded**
+
+For the purposes of this task, I have discarded the `Descript` and `Resolution` variables because they are more useful after prediction is done. I have also taken out the `Address` variable because with 23228 levels, handling it gets intricate. I intend to work on it with geocoding in the future.
+
+```{r, echo = FALSE}
+# Discarding some variables
+data <- data[-c(3, 6, 7)]
+```
+
+# Data Preprocessing
+
+**Dealing with date**
+
+Since they are just timestamp values, the `Dates` variable in itself is not very useful, so, I have created new seperate variables, `Year`, `Month`, `Day` and `Hour`; discared the `Dates` variable. The new variables are also stored as factors. This decision and the right variable selection has come about after a lot of failed attempts of model training.
+
+```{r, echo = FALSE}
+library(lubridate) # for date handling
+# convert `Dates` variable from factor to date type
+data$Dates = ymd_hms(data$Dates)
+# create new variable `Year`
+data$Year = as.factor(year(data$Dates))
+# create new variable `Month`
+data$Month = as.factor(month(data$Dates))
+# create new variable `Day`
+data$Day = as.factor(day(data$Dates))
+# create new variable `Month`
+data$Hour = as.factor(hour(data$Dates))
+# get rid the variable: `Dates`
+data = data[-1]
+```
+
+
+**Sampling**
+
+For quick evaluation and visualisation, arrangements for sampling has been made using a function called `makeSample`. While it is convenient to use sample, it's a good idea to estimate how much memory it would take to work on the entire dataset. Hence, I have also implemented a `getBigMemory` function for the purpose of such evaluation. Given below is a plot of 500 incidents of crime based on latitude and longitude. Under the plot, it shows how much memory (in megabytes) it would take if we were to use the entire dataset.
+
+```{r, echo = FALSE} 
+# create sample observation indices
+makeSample <- function(m, seed = 888){  
+  set.seed(seed)
+  sample_entries <- sample( 1 : nrow(data), size = m, replace = FALSE )
+  # create the sample
+  subset <- data[sample_entries,]
+  subset
+  }
+
+getBigMemory <- function(m, object = object){
+  factor = nrow(data) / m 
+  memory_bytes = factor * object.size(object) # object.size(data) = 959.184 bytes
+  cat("Memory for entire dataset: ")
+  print(memory_bytes, units = "MB") # output result in megabytes
+}
+
+# in case a validation set is needed
+# # split for training, validation and test set
+# split.train <- round(0.6 * m)         # this is where training set ends
+# split.val <- round(0.8 * m)           # this is where validation set ends
+# m.train = 1 : split.train             # training indices
+# m.val = (split.train + 1) : split.val # validation indices
+# m.test = (split.val + 1) : m          # test indices
+# 
+# crime.train <- crime[m.train,]        # training set (60% of data)
+# crime.val <- crime[m.val, ]           # validation set (different 20% of data)
+# crime.test <- crime[m.test, ]         # test set (remaining 20% of data)
+# summary(crime.train)
+
+temp.data = makeSample(500)
+plot(temp.data$X, temp.data$Y, xlab = "logitude", ylab = "latitude")
+getBigMemory(m = m, object = temp.data)
+```
+
+# The models (Supervised)
+
+Before going into the models, we do an evaluation of variable importance using AIC. It turns out, that the location variables and even intercept itself are doing a good job.
+
+```{r, warning = FALSE, include = FALSE}
+full.model = glm(Category ~ ., data = temp.data, family = binomial)
+
+null.model = glm(Category ~ 1, data = temp.data, family = binomial)
+
+variable.selection = step(null.model, formula(full.model), direction = "forward")
+```
+
+```{r}
+variable.selection[1]
+```
+
+
+**Logistic regression**
+
+Building training models for a class of 39 levels has proven to be extremely challenging. The first model I have used is logistic regression using `multinom` call of the neuralnet package. It is essentially a neural network with no hidden layers. For evaluating the accuracy of the approach, I have split the data in `7:3` ratio for training and testing respectively. At this point, I have also started to make use of `proc.time()` function to evalute the efficiency of the model generation. 
+
+```{r, echo = FALSE, include = FALSE}
+library(nnet)
+
+# get sample
+crime = makeSample(m, seed = 33)
+
+# split for training, validation and test set
+split.train <- round(0.7 * m)                 # this is where training set ends
+crime.train <- crime[1 : split.train,]        # training set (70% of data)
+crime.test <- crime[(split.train + 1) : m,]   # test set (rest 30% of data)
+
+# run logistic regression model
+log.time <- proc.time()
+log.model <- multinom(formula = Category ~ DayOfWeek + X + Y + Month , data = crime.train)
+log.time <- proc.time() - log.time
+log.result <- predict(log.model, crime.test[, -1]) # prediction on test data
+log.accuracy <- sum(log.result == t(crime.test[, 1])) # checking for out-of-sample performance
+```
+
+```{r, echo = FALSE}
+cat("The model took ", log.time[3], " seconds to generate\n",
+    "Out of ", dim(crime.test)[1], " test cases, it got", log.accuracy ," right")
+```
+
+
+
+
+**Neural networks**
+
+The next approach used is neural networks. Before running the model, I have preprocessed the data with feature scaling. This has resulted in slightly higher accuracy.  I have used the `caret` package for it, 2 most important reasons being:
+
+* It has built in implementation for using multiple cores of the machine. The same function without the use of the cores is more than 3 times slower. This fact is reflected in the out below. The number of cores to be used is set to 8 on the basis of a . It is set to 20 when the code is run on the VM.
+
+* It has a built in cross-validation which self-evaluates and builds the right model. In the process, it selects the right value of the regularization term, `decay` from a list that is provided. This helps in prevention of overfitting. Another parameter of neural networks that this model automatically selects is `size` which is the number of units in the hidden layer. Since multiple copies are made during cross validation, it has proven to be a better idea to run this in the VMs where memory is ample. With more RAM available, more parameters can also be taken into account with more interations (i.e. splits and repeats).
+
+
+```{r, echo = FALSE, , include = FALSE}
+# preparing data for neuralnet
+net.data = crime
+# feature scaling
+net.data$X = scale(net.data$X)
+net.data$Y = scale(net.data$Y)
+net.data$Year = scale(as.numeric(net.data$Year))
+net.data$Month = scale(as.numeric(net.data$Month))
+net.data$Day = scale(as.numeric(net.data$Day))
+net.data$Hour = scale(as.numeric(net.data$Hour))
+# splitting again
+net.train <- net.data[1 : split.train,]        # training set (70% of data)
+net.test <- net.data[(split.train + 1) : m,]   # test set (rest 30% of data)
+
+library(caret)
+library(doMC)
+registerDoMC(cores = 8)
+net.grid <- expand.grid(.decay = c(0.1, 0.5), .size = c(4, 8, 12, 16, 18, 20))
+net.control <- trainControl(method="cv", number=10, repeats=2)
+
+net.cv.time <- proc.time()
+net.cv <- train(Category ~ ., data = net.train[-c(8, 9)],
+                method = "nnet",
+                maxit = 1000,
+                tuneGrid = net.grid,
+                trace = TRUE,
+                linout = 1,
+                trControl = net.control
+                )
+net.cv.time <- proc.time() - net.cv.time
+```
+
+```{r, echo = FALSE}
+plot(net.cv)
+net.cv.result <- predict(net.cv, net.test[, -1])
+net.cv.accuracy <- sum(net.cv.result == t(net.test[, 1]))
+cat("The model took ", net.cv.time[3], " seconds to generate.\n",
+    "But the machine time was ", net.cv.time[4], "seconds, indicating parallisation.\n",
+    "Out of ", dim(crime.test)[1], " test cases, it got", net.cv.accuracy ," right")
+```
+
+
+**Random forest**
+
+For the standards of neural networks, the accuracy of prediction is very low. But the story is not that joyful for random forest either. As it turns out, it failed to even run. Unless I am mistaken, this is most likely because the trees did not find a good split to divide the data in the first node. Nonetheless, the attempt was to generate a model of 100 trees. The values of `mtry`s that were used are 3, 6 and 9. In an ideal result, the value of `mtry` that performed best during cross validation would have been the training model.
+
+
+```{r, echo = FALSE, eval = FALSE, include = FALSE}
+
+# remove continuous variables
+rf.train = crime.train[-c(4,5)]
+rf.test = crime.test[-c(4,5)]
+
+library(caret)
+library(doMC)
+registerDoMC(cores = 8)
+rf.grid <- expand.grid(.mtry = c(3, 6, 9))
+rf.control <- trainControl(method="cv", number=10, repeats=3)
+
+rf.cv.time <- proc.time()
+rf.cv <- train(Category ~ ., data = rf.train,
+                method = "rf",
+                maxit = 1000,
+                tuneGrid = rf.grid,
+                trace = TRUE,
+                ntree = 50,
+                trControl = rf.control
+                )
+rf.cv.time <- proc.time() - rf.cv.time
+```
+
+```{r, echo = FALSE, eval = FALSE}
+plot(rf.cv)
+rf.cv.result <- predict(rf.cv, crime.test[, -1])
+rf.cv.accuracy <- sum(rf.cv.result == t(crime.test[, 1]))
+cat("The model took ", rf.cv.time[3], " seconds to generate.\n",
+    "But the machine time was ", rf.cv.time[4], "seconds, indicating parallisation.\n",
+    "Out of ", dim(crime.test)[1], " test cases, it got", rf.cv.accuracy ," right")
+```
+
+
+# The models (Unsupervised)
+
+The two approaches used are principal component analysis in combination with k-means cluster. For meaningful visualisation, the levels of `Category` are further classified into 5 major groups. How well these groups are chosen is debatable and certainly can be improved with expert opinions.
+
+```{r, echo = FALSE, message = FALSE}
+library(data.table) # For data representation and manipulation
+temp = crime
+
+# handpick levels of `Category` and make a new group
+felony <- as.factor(unique(data$Category)[c(7, 8, 10, 14, 23, 26, 37)])
+personal <- as.factor(unique(data$Category)[c(3, 4, 15, 27, 33, 34)])
+misdemeanor <- as.factor(unique(data$Category)[c(5, 11, 13, 18, 19, 20, 21, 24, 30, 36)])
+offenses <- as.factor(unique(data$Category)[c(1, 9, 12, 16, 22, 28, 32, 37, 39 )])
+other <- as.factor(unique(data$Category)[c(2, 6, 17, 25, 29, 31, 35, 38)])
+
+temp = data.table(crime)
+# all the values of each group are transformed into the name of the group
+temp[Category %in% felony, newCategory := as.factor("felony") ]
+temp[Category %in% personal, newCategory := as.factor("personal") ]
+temp[Category %in% misdemeanor, newCategory := as.factor("misdemeanor") ]
+temp[Category %in% offenses, newCategory := as.factor("offenses") ]
+temp[Category %in% other, newCategory := as.factor("other") ]
+temp$newCategory = as.factor(temp$newCategory)
+
+few.color = rainbow(5)
+plot(temp$X, temp$Y,
+     col = few.color[temp$newCategory],
+     xlab = "logitude", ylab = "latitude")
+legend("topleft", as.character(unique(temp$newCategory)), 
+       pch = 1, col = few.color, cex = 0.55)
+summary(temp$newCategory)
+```
+
+
+**PCA and K-means**
+
+For unsupervised analysis, first, the 5 new categories are mapped on a 2 dimensional space. Then clusters are generated and applied on the same 2 dimensional space on a different plot. Not surprisingly actual data is not as uniform as the clusters and neither is the `RRand` value very promising.
+
+```{r, echo = FALSE, message = FALSE}
+library(phyclust)
+# PCA requires numeric values 
+# As it turns out, preprocessed data from neural network can be easily used
+un.data = net.data[, 4:9]
+un.data$Category = temp$newCategory
+
+# Unsupervised models
+pca.model <- princomp(un.data[,1:6])
+clust.model <- kmeans(un.data[,1:6], centers = 5)
+
+# Space for 2 plots
+par(mfrow = c(2, 1),
+    oma = c(3, 0, 3, 0),
+    mar = c(1, 0, 0, 0))
+
+plot(pca.model$scores[, 1:2], type = "n", axes = FALSE)
+points(pca.model$scores[, 1:2],
+       col = few.color[un.data$Category])
+axis(3)
+mtext("Principal components with new categories",
+      side = 3, line = 2)
+
+plot(pca.model$scores[, 1:2], type = "n", axes = FALSE)
+points(pca.model$scores[, 1:2],
+       col = few.color[clust.model$cluster])
+axis(1)
+mtext("Principal components with clusters",
+      side = 1, line = 2)
+
+RRand(as.numeric(un.data$Category), clust.model$cluster)
+```
+
+Email: cruison@gmail.com
