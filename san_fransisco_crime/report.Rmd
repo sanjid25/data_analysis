@@ -14,7 +14,7 @@ https://www.kaggle.com/c/sf-crime/data
 
 **Running the .Rmd file**
 
-Keeping the `train.csv` file in the directory of the .Rmd file should run the code given. Due to use of `doMC` library of the `caret` package, the .Rmd file needs to be run in a UNIX machine if not the lab VMs. Just so this code can be easily run, I have set a variable `m` in the first code block which assigns a value of the size of subset to be used. Given this condition, the file takes less than 5 minutes to produce this report. For what it's worth, a bigger value of `m` would make a better report. The following packages were used for this report: `dplyr`, `lubridate`, `nnet`, `caret`, `doMC`, `data.table` and `phyclust` and need to be installed in R.
+Keeping the `train.csv` file in the directory of the .Rmd file should run the code given. Due to use of `doMC` library of the `caret` package, the .Rmd file needs to be run in a UNIX machine. Just so this code can be easily run, I have set a variable `m` in the first code block which assigns a value of the size of subset to be used. Given this condition, the file takes less than 5 minutes to produce this report. For what it's worth, a bigger value of `m` would make a better report. The following packages were used for this report: `dplyr`, `lubridate`, `nnet`, `caret`, `doMC`, `data.table` and `phyclust` and need to be installed in R.
 
 ```{r, echo = FALSE, message = FALSE}
 # Loading the data in R
@@ -154,7 +154,7 @@ The next approach used is neural networks. Before running the model, I have prep
 
 * It has built in implementation for using multiple cores of the machine. The same function without the use of the cores is more than 3 times slower. This fact is reflected in the out below. The number of cores to be used is set to 8 on the basis of a . It is set to 20 when the code is run on the VM.
 
-* It has a built in cross-validation which self-evaluates and builds the right model. In the process, it selects the right value of the regularization term, `decay` from a list that is provided. This helps in prevention of overfitting. Another parameter of neural networks that this model automatically selects is `size` which is the number of units in the hidden layer. Since multiple copies are made during cross validation, it has proven to be a better idea to run this in the VMs where memory is ample. With more RAM available, more parameters can also be taken into account with more interations (i.e. splits and repeats).
+* It has a built in cross-validation which self-evaluates and builds the right model. In the process, it selects the right value of the regularization term, `decay` from a list that is provided. This helps in prevention of overfitting. Another parameter of neural networks that this model automatically selects is `size` which is the number of units in the hidden layer. Since multiple copies are made during cross validation, it has proven to be a better idea to run this in a machine where memory is ample. With more RAM available, more parameters can also be taken into account with more interations (i.e. splits and repeats).
 
 
 ```{r, echo = FALSE, , include = FALSE}
@@ -309,4 +309,4 @@ mtext("Principal components with clusters",
 RRand(as.numeric(un.data$Category), clust.model$cluster)
 ```
 
-Email: cruison@gmail.com
+Email: sanjid25@gmail.com
